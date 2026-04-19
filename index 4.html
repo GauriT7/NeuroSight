@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>NeuroSight — Neuro-ocular Screening</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f4f8;color:#1a1a2e;min-height:100vh}
+.header{background:#1a3a5c;color:white;padding:.9rem 1.5rem;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.logo{width:36px;height:36px;background:#4a9fd4;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.header h1{font-size:17px;font-weight:600}
+.header p{font-size:10px;opacity:.7;margin-top:1px}
+.header-right{margin-left:auto;font-size:11px;opacity:.6;text-align:right}
+.container{max-width:580px;margin:0 auto;padding:1.25rem 1rem 3rem}
+.card{background:white;border-radius:14px;border:1px solid #e2e8f0;padding:1.25rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card h2{font-size:14px;font-weight:600;margin-bottom:.75rem;color:#1a3a5c}
+.steps{display:flex;gap:5px;margin-bottom:1.25rem}
+.step{flex:1;height:3px;background:#e0e4f0;border-radius:2px;transition:background .3s}
+.step.done{background:#1a3a5c}.step.active{background:#4a9fd4}
+.screen{display:none}.screen.active{display:block}
+.btn{width:100%;padding:13px;border-radius:10px;border:none;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:opacity .2s}
+.btn-p{background:#1a3a5c;color:white}.btn-p:hover{opacity:.88}
+.btn-s{background:#e8eaf0;color:#1a3a5c}
+.btn-green{background:#1a6630;color:white}
+.btn-amber{background:#856404;color:white}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-bottom:.6rem}
+.pill.wait{background:#e8eaf0;color:#5a6070}.pill.run{background:#dbeafe;color:#1d4ed8}.pill.ok{background:#dcfce7;color:#166534}.pill.warn{background:#fef9c3;color:#854d0e}
+
+/* ── FORM ── */
+.form-row{margin-bottom:.9rem}
+.form-row label{font-size:12px;color:#6b7280;display:block;margin-bottom:5px;font-weight:500}
+.form-row input,.form-row select{width:100%;padding:9px 11px;border-radius:8px;border:1px solid #e0e4f0;font-size:13px;background:white;color:#1a1a2e;outline:none}
+.form-row input:focus,.form-row select:focus{border-color:#4a9fd4}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fv{font-size:13px;font-weight:600;color:#1a3a5c;float:right}
+.required{color:#dc2626;margin-left:2px}
+.form-row input[type=range]{padding:0;border:none;background:none}
+
+/* ── CAMERA ── */
+.cam-wrap{position:relative;width:100%;height:320px;background:#0a0e1a;border-radius:12px;overflow:hidden;margin-bottom:.75rem}
+#videoEl{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#faceCanvas{position:absolute;top:0;left:0;width:100%;height:100%}
+#taskCanvas{position:absolute;top:0;left:0;width:100%;height:100%}
+.cam-label{position:absolute;top:10px;left:0;right:0;text-align:center;color:white;font-size:12px;font-weight:500;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.cam-timer{position:absolute;top:10px;right:12px;color:#4a9fd4;font-size:13px;font-weight:700}
+#gazeDot{position:absolute;width:16px;height:16px;background:#4af0c0;border-radius:50%;border:2px solid white;pointer-events:none;transform:translate(-50%,-50%);display:none;transition:left .04s,top .04s}
+
+/* ── REAL-TIME METRICS ── */
+.metrics-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:.75rem}
+.metric-cell{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 6px;text-align:center}
+.metric-cell .ml{font-size:9px;color:#6b7280;margin-bottom:2px;line-height:1.2}
+.metric-cell .mv{font-size:15px;font-weight:700;color:#1a3a5c;font-variant-numeric:tabular-nums}
+.metric-cell .mu{font-size:9px;color:#9ca3af}
+.metric-cell.alert .mv{color:#dc2626}
+.metric-cell.good .mv{color:#16a34a}
+
+/* Compliance bar */
+.compliance-wrap{margin-bottom:.75rem}
+.compliance-label{display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:4px}
+.compliance-track{background:#e8eaf0;border-radius:4px;height:6px;overflow:hidden}
+.compliance-fill{height:100%;border-radius:4px;transition:width .5s;background:#4a9fd4}
+
+/* ── FACE ALIGNMENT ── */
+.align-status{text-align:center;padding:.5rem 0;font-size:13px;font-weight:500}
+.align-status.bad{color:#dc2626}.align-status.ok{color:#16a34a}.align-status.warn{color:#d97706}
+
+/* ── PARAMS ── */
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:.75rem 0}
+.pc{background:#f8fafc;border-radius:10px;padding:11px}
+.pc .pl{font-size:10px;color:#6b7280;margin-bottom:3px}
+.pc .pv{font-size:17px;font-weight:700;color:#1a3a5c}
+.pc .pu{font-size:10px;color:#9ca3af;margin-left:2px}
+.pc .pr{font-size:9px;color:#9ca3af;margin-top:2px}
+
+/* ── RETINAL ── */
+.uzone{border:2px dashed #c0cce0;border-radius:12px;padding:1.5rem 1rem;text-align:center;cursor:pointer;position:relative;margin-bottom:1rem;transition:border-color .2s}
+.uzone:hover{border-color:#4a9fd4}
+.uzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.uzone .ui{font-size:28px;color:#4a9fd4;margin-bottom:6px}
+.uzone p{font-size:13px;color:#6b7280}
+.uzone .uh{font-size:10px;color:#9ca3af;margin-top:3px}
+.rprev{position:relative;border-radius:12px;overflow:hidden;margin-bottom:.75rem}
+.rprev img{width:100%;border-radius:12px;display:block;max-height:200px;object-fit:cover}
+.rprev canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:12px}
+.abar{margin-bottom:8px}
+.abar .al{display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:3px}
+.abar .al span:last-child{font-weight:600;color:#1a3a5c}
+.awrap{background:#e8eaf0;border-radius:4px;height:6px;overflow:hidden}
+.afill{height:100%;border-radius:4px;transition:width 1s ease;width:0%}
+.spin-wrap{text-align:center;padding:1.25rem}
+.spinner{width:32px;height:32px;border:3px solid #e0e4f0;border-top-color:#4a9fd4;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto .75rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rscores{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:.75rem}
+.rsc{background:#f8fafc;border-radius:10px;padding:10px}
+.rsc .rl{font-size:10px;color:#6b7280;margin-bottom:2px}
+.rsc .rv{font-size:16px;font-weight:700;color:#1a3a5c}
+.rsc .rr{font-size:9px;color:#9ca3af}
+.mbadge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;margin-bottom:6px}
+.mbadge.oc{background:#dbeafe;color:#1d4ed8}.mbadge.re{background:#dcfce7;color:#166534}
+
+/* ── SCORE ── */
+.score-box{background:#1a3a5c;border-radius:14px;padding:1.5rem;color:white;text-align:center;margin-bottom:1rem}
+.score-num{font-size:60px;font-weight:700;line-height:1}
+.score-sub{font-size:11px;opacity:.65;margin-top:3px}
+.sbar-wrap{background:rgba(255,255,255,.15);border-radius:6px;height:7px;margin:14px 0 6px;overflow:hidden}
+.sbar{height:100%;border-radius:6px;transition:width .8s ease}
+.rbadge{display:inline-block;padding:4px 16px;border-radius:20px;font-size:13px;font-weight:700;margin-top:6px}
+.rbadge.low{background:#dcfce7;color:#166534}.rbadge.mid{background:#fef9c3;color:#854d0e}.rbadge.high{background:#fee2e2;color:#991b1b}
+.wr{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px}
+.wl{flex:1;color:#374151}.wp{font-weight:600;color:#1a3a5c;min-width:34px;text-align:right}
+.wwrap{flex:2;background:#e8eaf0;border-radius:4px;height:5px;overflow:hidden}
+.wfill{height:100%;border-radius:4px}
+
+/* ── OUTCOME CARDS ── */
+.outcome-card{border-radius:14px;padding:1.25rem;margin-bottom:1rem;border:2px solid}
+.outcome-card.referral{background:#fff1f2;border-color:#fca5a5}
+.outcome-card.followup{background:#f0fdf4;border-color:#86efac}
+.outcome-card h3{font-size:15px;font-weight:700;margin-bottom:.5rem}
+.outcome-card.referral h3{color:#991b1b}
+.outcome-card.followup h3{color:#166534}
+.outcome-card p{font-size:13px;line-height:1.6}
+.outcome-card.referral p{color:#7f1d1d}
+.outcome-card.followup p{color:#14532d}
+
+/* ── REPORT ── */
+.report-section{background:#f8fafc;border-radius:10px;padding:1rem;margin-bottom:.75rem}
+.report-section h4{font-size:12px;font-weight:600;color:#1a3a5c;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.5px}
+.report-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #e8eaf0}
+.report-row:last-child{border-bottom:none}
+.report-row .rk{color:#6b7280}.report-row .rv{font-weight:600;color:#1a1a2e}
+
+/* ── COGN ── */
+.cq{margin-bottom:.9rem}
+.cq p{font-size:13px;color:#374151;margin-bottom:7px;font-weight:500}
+.copts{display:flex;gap:7px}
+.copt{flex:1;padding:8px 4px;border-radius:8px;border:1px solid #e0e4f0;font-size:11px;text-align:center;cursor:pointer;color:#374151;background:white;transition:all .15s}
+.copt.sel{background:#1a3a5c;color:white;border-color:#1a3a5c}
+
+.disc{font-size:10px;color:#9ca3af;text-align:center;line-height:1.5;margin-top:.75rem}
+
+/* ── PROGRESS ── */
+.progress-step{display:flex;align-items:center;gap:10px;padding:.6rem 0;border-bottom:1px solid #f0f4f8}
+.progress-step:last-child{border-bottom:none}
+.ps-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.ps-icon.done{background:#dcfce7;color:#166534}
+.ps-icon.active{background:#dbeafe;color:#1d4ed8}
+.ps-icon.pend{background:#f1f5f9;color:#94a3b8}
+.ps-text{font-size:12px;color:#374151}
+.ps-text strong{display:block;color:#1a1a2e;font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">N</div>
+  <div><h1>NeuroSight</h1><p>Neuro-ocular dementia risk screening</p></div>
+  <div class="header-right" id="hdr-patient"></div>
+</div>
+
+<div class="container">
+  <div class="steps" id="step-bar">
+    <div class="step active" id="si0"></div>
+    <div class="step" id="si1"></div>
+    <div class="step" id="si2"></div>
+    <div class="step" id="si3"></div>
+    <div class="step" id="si4"></div>
+    <div class="step" id="si5"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       S0 — PATIENT DETAILS
+  ═══════════════════════════════════════ -->
+  <div class="screen active" id="s0">
+    <div class="card">
+      <h2>Patient registration</h2>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>First name <span class="required">*</span></label>
+          <input type="text" id="f-fname" placeholder="e.g. Priya">
+        </div>
+        <div class="form-row">
+          <label>Last name <span class="required">*</span></label>
+          <input type="text" id="f-lname" placeholder="e.g. Sharma">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Age <span class="required">*</span></label>
+          <input type="number" id="f-age" placeholder="e.g. 65" min="40" max="100">
+        </div>
+        <div class="form-row">
+          <label>Gender</label>
+          <select id="f-gender">
+            <option value="">Select</option>
+            <option>Female</option><option>Male</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Patient ID</label>
+          <input type="text" id="f-pid" placeholder="Auto-generated" readonly style="background:#f8fafc;color:#6b7280">
+        </div>
+        <div class="form-row">
+          <label>Contact number</label>
+          <input type="tel" id="f-phone" placeholder="e.g. 9876543210">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Known eye conditions</label>
+        <select id="f-eye" onchange="ePenalty=+this.value">
+          <option value="0">None</option>
+          <option value="5">Glaucoma</option>
+          <option value="3">Macular degeneration</option>
+          <option value="2">Diabetic retinopathy</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Family history of dementia?</label>
+        <select id="f-fhx" onchange="fhxPenalty=+this.value">
+          <option value="0">No / Unknown</option>
+          <option value="5">Yes — first degree relative</option>
+          <option value="2">Yes — second degree relative</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Screening type</label>
+        <select id="f-stype">
+          <option value="new">New patient — initial screening</option>
+          <option value="followup">Follow-up screening</option>
+        </select>
+      </div>
+      <p id="form-err" style="font-size:12px;color:#dc2626;margin-top:4px;display:none">Please fill in name and age to continue.</p>
+    </div>
+    <button class="btn btn-p" onclick="submitPatient()">Register patient & begin →</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       S1 — FACE ALIGNMENT
+  ═══════════════════════════════════════ -->
+  <div class="screen" id="s1">
+    <div class="card">
+      <h2>Face alignment check</h2>
+      <div class="cam-wrap" id="align-wrap">
+        <video id="videoEl" autoplay playsinline muted></video>
+        <canvas id="faceCanvas"></canvas>
+        <div class="cam-label" id="alignLabel">Position your face inside the oval</div>
+      </div>
+      <div class="align-status" id="alignStatus">Waiting for camera...</div>
+      <div style="font-size:12px;color:#6b7280;line-height:1.6;margin-top:.5rem">
+        Sit in a well-lit room. Hold the device at arm's length (30–40 cm). Keep your face centred in the oval before the assessment begins.
+      </div>
+    </div>
+    <div class="card" style="padding:.9rem">
+      <div class="progress-step">
+        <div class="ps-icon active">1</div>
+        <div class="ps-text"><strong>Face alignment</strong>Centre face in oval</div>
+      </div>
+      <div class="progress-step">
+        <div class="ps-icon pend">2</div>
+        <div class="ps-text"><strong>Oculomotor tasks</strong>4 tasks · 3–5 minutes</div>
+      </div>
+      <div class="progress-step">
+        <div class="ps-icon pend">3</div>
+        <div class="ps-text"><strong>Retinal analysis</strong>Optional fundus upload</div>
+      </div>
+      <div class="progress-step">
+        <div class="ps-icon pend">4</div>
+        <div class="ps-text"><strong>Risk score & report</strong>Referral or follow-up</div>
+      </div>
+    </div>
+    <button class="btn btn-s" onclick="skipAlign()">Skip alignment (demo mode)</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       S2 — EYE TRACKING TASKS
+  ═══════════════════════════════════════ -->
+  <div class="screen" id="s2">
+    <div class="card">
+      <span class="pill run" id="tstat">Ready</span>
+      <div class="cam-wrap" id="arena">
+        <video id="videoEl2" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:.2;transform:scaleX(-1)"></video>
+        <canvas id="taskCanvas"></canvas>
+        <div id="gazeDot"></div>
+        <div class="cam-label" id="tLabel">Press Start to begin tasks</div>
+        <div class="cam-timer" id="tTimer"></div>
+      </div>
+
+      <!-- Real-time metrics -->
+      <div class="metrics-bar" id="rt-metrics">
+        <div class="metric-cell" id="mc-sl">
+          <div class="ml">Saccade latency</div>
+          <div class="mv" id="mv-sl">--</div>
+          <div class="mu">ms</div>
+        </div>
+        <div class="metric-cell" id="mc-as">
+          <div class="ml">Anti-sacc. errors</div>
+          <div class="mv" id="mv-as">--</div>
+          <div class="mu">%</div>
+        </div>
+        <div class="metric-cell" id="mc-fi">
+          <div class="ml">Fixation stab.</div>
+          <div class="mv" id="mv-fi">--</div>
+          <div class="mu">°</div>
+        </div>
+        <div class="metric-cell" id="mc-sp">
+          <div class="ml">Pursuit gain</div>
+          <div class="mv" id="mv-sp">--</div>
+          <div class="mu"></div>
+        </div>
+      </div>
+
+      <!-- Compliance -->
+      <div class="compliance-wrap">
+        <div class="compliance-label"><span>Patient compliance</span><span id="comp-pct">--</span></div>
+        <div class="compliance-track"><div class="compliance-fill" id="comp-fill" style="width:0%"></div></div>
+      </div>
+
+      <p id="tDesc" style="font-size:12px;color:#6b7280;text-align:center;line-height:1.5;padding:.3rem 0"></p>
+    </div>
+    <button class="btn btn-p" id="startBtn" onclick="runNext()">Start eye-tracking tasks →</button>
+    <button class="btn btn-s" onclick="skipToRet()">Skip to retinal (demo mode)</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       S3 — RETINAL
+  ═══════════════════════════════════════ -->
+  <div class="screen" id="s3">
+    <div class="card">
+      <h2>Retinal biomarker analysis</h2>
+      <span class="mbadge re">Retinal module</span>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:.9rem;line-height:1.5">Upload a fundus photograph from routine eye care. NeuroSight extracts vascular caliber, fractal dimension, texture anomaly and disc pallor biomarkers.</p>
+      <div class="uzone" id="uzone">
+        <input type="file" accept="image/*" onchange="handleUpload(event)">
+        <div class="ui">+</div>
+        <p>Tap to upload fundus image</p>
+        <p class="uh">JPEG or PNG · any retinal/eye image for demo</p>
+      </div>
+      <div id="ret-analyzing" style="display:none">
+        <div class="spin-wrap">
+          <div class="spinner"></div>
+          <p style="font-size:13px;font-weight:600;color:#1a3a5c">Analysing retinal image...</p>
+          <p style="font-size:11px;color:#6b7280;margin-top:3px" id="astep">Extracting vascular features</p>
+        </div>
+      </div>
+      <div id="ret-result" style="display:none">
+        <div class="rprev"><img id="ret-img" src="" alt="Fundus"><canvas id="ret-canvas"></canvas></div>
+        <div style="margin-bottom:.75rem">
+          <div class="abar"><div class="al"><span>Vascular caliber ratio (AVR)</span><span id="avr-v">--</span></div><div class="awrap"><div class="afill" id="avr-b" style="background:#e05c5c"></div></div></div>
+          <div class="abar"><div class="al"><span>Fractal dimension</span><span id="fd-v">--</span></div><div class="awrap"><div class="afill" id="fd-b" style="background:#f5a623"></div></div></div>
+          <div class="abar"><div class="al"><span>Texture anomaly index</span><span id="tai-v">--</span></div><div class="awrap"><div class="afill" id="tai-b" style="background:#e05c5c"></div></div></div>
+          <div class="abar"><div class="al"><span>Optic disc pallor</span><span id="odp-v">--</span></div><div class="awrap"><div class="afill" id="odp-b" style="background:#4a9fd4"></div></div></div>
+        </div>
+        <div class="rscores">
+          <div class="rsc"><div class="rl">Vascular composite</div><div class="rv"><span id="vscore">--</span><span style="font-size:10px;color:#9ca3af;margin-left:1px">/100</span></div><div class="rr">Arteriovenous changes</div></div>
+          <div class="rsc"><div class="rl">Texture composite</div><div class="rv"><span id="tscore">--</span><span style="font-size:10px;color:#9ca3af;margin-left:1px">/100</span></div><div class="rr">Neurodegenerative changes</div></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-p" onclick="showParams()">View extracted parameters →</button>
+    <button class="btn btn-s" onclick="skipRet()">Skip — oculomotor only</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       S4 — PARAMETERS + SCORE
+  ═══════════════════════════════════════ -->
+  <div class="screen" id="s4">
+    <div class="card">
+      <h2>Oculomotor parameters</h2>
+      <span class="mbadge oc">Oculomotor module</span>
+      <div class="pgrid">
+        <div class="pc"><div class="pl">Saccade latency</div><div class="pv"><span id="r-sl">--</span><span class="pu">ms</span></div><div class="pr">Normal: 150–200ms</div></div>
+        <div class="pc"><div class="pl">Anti-saccade errors</div><div class="pv"><span id="r-as">--</span><span class="pu">%</span></div><div class="pr">Normal: &lt;15%</div></div>
+        <div class="pc"><div class="pl">Fixation instability</div><div class="pv"><span id="r-fi">--</span><span class="pu">°</span></div><div class="pr">Normal: &lt;1.5°</div></div>
+        <div class="pc"><div class="pl">Pursuit gain</div><div class="pv"><span id="r-sp">--</span></div><div class="pr">Normal: &gt;0.85</div></div>
+      </div>
+    </div>
+    <div class="card" id="ret-params" style="display:none">
+      <h2>Retinal parameters</h2>
+      <span class="mbadge re">Retinal module</span>
+      <div class="pgrid">
+        <div class="pc"><div class="pl">AVR score</div><div class="pv"><span id="p-avr">--</span><span class="pu">/100</span></div><div class="pr">Vascular caliber</div></div>
+        <div class="pc"><div class="pl">Fractal dimension</div><div class="pv"><span id="p-fd">--</span><span class="pu">/100</span></div><div class="pr">Vessel branching</div></div>
+        <div class="pc"><div class="pl">Texture anomaly</div><div class="pv"><span id="p-tai">--</span><span class="pu">/100</span></div><div class="pr">Neural changes</div></div>
+        <div class="pc"><div class="pl">Disc pallor</div><div class="pv"><span id="p-odp">--</span><span class="pu">/100</span></div><div class="pr">Nerve fibre loss</div></div>
+      </div>
+    </div>
+    <div class="card"><h2>Fusion weighting</h2><div id="wdisplay"></div></div>
+    <div class="card">
+      <h2>Patient compliance</h2>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:32px;font-weight:700;color:#1a3a5c" id="comp-final">--</div>
+        <div>
+          <div style="font-size:12px;color:#6b7280">Overall compliance score</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:2px" id="comp-note">Based on gaze stability and task adherence</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-p" onclick="showResults()">Generate risk score & report →</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       S5 — RESULTS + REPORT + OUTCOME
+  ═══════════════════════════════════════ -->
+  <div class="screen" id="s5">
+    <div class="score-box">
+      <div class="score-sub">Composite neuro-ocular risk score</div>
+      <div class="score-num" id="fscore">--</div>
+      <div class="sbar-wrap"><div class="sbar" id="sbar" style="width:0%"></div></div>
+      <span class="rbadge" id="rbadge">--</span>
+    </div>
+
+    <!-- Outcome pathway -->
+    <div class="outcome-card referral" id="outcome-referral" style="display:none">
+      <h3>Neurological referral recommended</h3>
+      <p>This patient's oculomotor and/or retinal parameters are significantly outside age-adjusted normal ranges. A neurological referral within <strong>4 weeks</strong> is advised. The report below should accompany the referral letter.</p>
+    </div>
+    <div class="outcome-card followup" id="outcome-followup" style="display:none">
+      <h3>Scheduled follow-up recommended</h3>
+      <p>Parameters are within acceptable ranges. <span id="followup-interval"></span>. Continue monitoring through routine eye-care visits.</p>
+    </div>
+
+    <!-- Cognitive questionnaire (high risk only) -->
+    <div id="cogn" style="display:none">
+      <div class="card">
+        <h2>Cognitive questionnaire</h2>
+        <p style="font-size:11px;color:#6b7280;margin-bottom:.9rem">Complete before finalising referral report.</p>
+        <div class="cq"><p>Do you frequently forget recent conversations?</p><div class="copts"><button class="copt" onclick="selC(this,0,0)">No</button><button class="copt" onclick="selC(this,0,1)">Sometimes</button><button class="copt" onclick="selC(this,0,2)">Yes</button></div></div>
+        <div class="cq"><p>Difficulty finding words while speaking?</p><div class="copts"><button class="copt" onclick="selC(this,1,0)">No</button><button class="copt" onclick="selC(this,1,1)">Sometimes</button><button class="copt" onclick="selC(this,1,2)">Yes</button></div></div>
+        <div class="cq"><p>Changes in ability to plan or organise?</p><div class="copts"><button class="copt" onclick="selC(this,2,0)">No</button><button class="copt" onclick="selC(this,2,1)">Sometimes</button><button class="copt" onclick="selC(this,2,2)">Yes</button></div></div>
+        <div id="cres" style="display:none;margin-top:.75rem;padding:10px;border-radius:8px;font-size:12px;font-weight:600"></div>
+      </div>
+    </div>
+
+    <!-- Patient Report -->
+    <div class="card" id="report-card">
+      <h2>Screening report</h2>
+      <div class="report-section">
+        <h4>Patient details</h4>
+        <div class="report-row"><span class="rk">Name</span><span class="rv" id="rp-name">--</span></div>
+        <div class="report-row"><span class="rk">Patient ID</span><span class="rv" id="rp-id">--</span></div>
+        <div class="report-row"><span class="rk">Age / Gender</span><span class="rv" id="rp-age">--</span></div>
+        <div class="report-row"><span class="rk">Contact</span><span class="rv" id="rp-phone">--</span></div>
+        <div class="report-row"><span class="rk">Screening type</span><span class="rv" id="rp-stype">--</span></div>
+        <div class="report-row"><span class="rk">Date</span><span class="rv" id="rp-date">--</span></div>
+        <div class="report-row"><span class="rk">Compliance</span><span class="rv" id="rp-comp">--</span></div>
+      </div>
+      <div class="report-section">
+        <h4>Oculomotor findings</h4>
+        <div class="report-row"><span class="rk">Saccade latency</span><span class="rv" id="rr-sl">--</span></div>
+        <div class="report-row"><span class="rk">Anti-saccade error rate</span><span class="rv" id="rr-as">--</span></div>
+        <div class="report-row"><span class="rk">Fixation instability</span><span class="rv" id="rr-fi">--</span></div>
+        <div class="report-row"><span class="rk">Smooth pursuit gain</span><span class="rv" id="rr-sp">--</span></div>
+      </div>
+      <div class="report-section" id="rr-ret-section" style="display:none">
+        <h4>Retinal findings</h4>
+        <div class="report-row"><span class="rk">Vascular composite</span><span class="rv" id="rr-vs">--</span></div>
+        <div class="report-row"><span class="rk">Texture composite</span><span class="rv" id="rr-ts">--</span></div>
+      </div>
+      <div class="report-section">
+        <h4>Risk assessment</h4>
+        <div class="report-row"><span class="rk">Composite score</span><span class="rv" id="rr-score">--</span></div>
+        <div class="report-row"><span class="rk">Risk category</span><span class="rv" id="rr-cat">--</span></div>
+        <div class="report-row"><span class="rk">Recommendation</span><span class="rv" id="rr-rec">--</span></div>
+        <div class="report-row"><span class="rk">Next screening</span><span class="rv" id="rr-next">--</span></div>
+      </div>
+      <p style="font-size:10px;color:#9ca3af;margin-top:.75rem;line-height:1.5">NeuroSight is a screening and triage tool only. This report does not constitute a clinical diagnosis and must be interpreted by a qualified neurologist or clinician.</p>
+    </div>
+
+    <button class="btn btn-p" id="action-btn" onclick="">-- action --</button>
+    <button class="btn btn-s" onclick="restart()" style="margin-top:4px">New screening</button>
+    <p class="disc">NeuroSight v1.0 · Screening tool only · Not a diagnostic device</p>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────
+let pAge=65,ePenalty=0,fhxPenalty=0,tIdx=0,hasRet=false;
+let stream=null,stream2=null,af=null,faceAf=null;
+let cScores=[0,0,0],complianceScore=0;
+let R={sl:0,as:0,fi:0,sp:0};
+let RR={avr:0,fd:0,tai:0,odp:0,vs:0,ts:0};
+let patient={};
+let finalScore=0;
+let rtInterval=null;
+let alignOk=false,alignTimer=null,alignCountdown=3;
+
+const tasks=[
+  {name:"Fixation task",dur:8,desc:"Keep your eyes fixed on the central dot without moving."},
+  {name:"Pro-saccade task",dur:10,desc:"Follow the dot as it jumps left and right — react as fast as you can."},
+  {name:"Anti-saccade task",dur:10,desc:"When the dot appears on one side, look to the OPPOSITE side immediately."},
+  {name:"Smooth pursuit task",dur:10,desc:"Follow the slowly moving dot smoothly with your eyes."}
+];
+
+// ─── Navigation ──────────────────────────────────
+function gs(n){
+  document.querySelectorAll('.screen').forEach((s,i)=>s.classList.toggle('active',i===n));
+  document.querySelectorAll('.step').forEach((s,i)=>{s.className='step'+(i<n?' done':i===n?' active':'');});
+}
+
+// ─── S0: Patient form ────────────────────────────
+function genPID(){
+  return 'NS-'+Date.now().toString(36).toUpperCase().slice(-5);
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('f-pid').value=genPID();
+});
+
+function submitPatient(){
+  const fn=document.getElementById('f-fname').value.trim();
+  const ln=document.getElementById('f-lname').value.trim();
+  const age=parseInt(document.getElementById('f-age').value);
+  if(!fn||!ln||!age){document.getElementById('form-err').style.display='block';return;}
+  document.getElementById('form-err').style.display='none';
+  patient={
+    name:fn+' '+ln,fname:fn,
+    age:age,gender:document.getElementById('f-gender').value||'Not specified',
+    pid:document.getElementById('f-pid').value,
+    phone:document.getElementById('f-phone').value||'Not provided',
+    stype:document.getElementById('f-stype').value,
+    eye:document.getElementById('f-eye').options[document.getElementById('f-eye').selectedIndex].text,
+    date:new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
+  };
+  pAge=age;
+  document.getElementById('hdr-patient').innerHTML=fn+' '+ln+'<br>'+age+'y · '+patient.pid;
+  gs(1);
+  startFaceAlign();
+}
+
+// ─── S1: Face alignment ───────────────────────────
+async function startFaceAlign(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
+    document.getElementById('videoEl').srcObject=stream;
+    document.getElementById('videoEl').onloadedmetadata=()=>{
+      setupFaceCanvas();
+      runFaceDetection();
+    };
+  }catch(e){
+    document.getElementById('alignStatus').textContent='Camera unavailable — tap Skip to continue';
+    document.getElementById('alignStatus').className='align-status warn';
+  }
+}
+
+function setupFaceCanvas(){
+  const wrap=document.getElementById('align-wrap');
+  const fc=document.getElementById('faceCanvas');
+  fc.width=wrap.offsetWidth;fc.height=wrap.offsetHeight;
+}
+
+function runFaceDetection(){
+  const fc=document.getElementById('faceCanvas');
+  const ctx=fc.getContext('2d');
+  const W=fc.width,H=fc.height;
+  const ovalCx=W/2,ovalCy=H/2,ovalRx=W*0.22,ovalRy=H*0.38;
+  let simFaceX=W*0.4+Math.random()*W*0.2;
+  let simFaceY=H*0.35+Math.random()*H*0.15;
+  let simFaceR=Math.min(W,H)*0.15;
+  let converging=false;
+  let goodFrames=0;
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // Oval guide
+    ctx.beginPath();
+    ctx.ellipse(ovalCx,ovalCy,ovalRx,ovalRy,0,0,Math.PI*2);
+    const inOval=Math.pow((simFaceX-ovalCx)/ovalRx,2)+Math.pow((simFaceY-ovalCy)/ovalRy,2)<0.85;
+    ctx.strokeStyle=inOval?'#22c55e':'#4a9fd4';
+    ctx.lineWidth=2.5;ctx.setLineDash([8,5]);ctx.stroke();ctx.setLineDash([]);
+    // Face circle (simulated)
+    ctx.beginPath();ctx.arc(simFaceX,simFaceY,simFaceR,0,Math.PI*2);
+    ctx.strokeStyle=inOval?'rgba(34,197,94,.6)':'rgba(74,159,212,.5)';
+    ctx.lineWidth=2;ctx.stroke();
+    // Eyes
+    ctx.fillStyle=inOval?'#22c55e':'#4a9fd4';
+    ctx.beginPath();ctx.arc(simFaceX-simFaceR*.28,simFaceY-simFaceR*.1,simFaceR*.09,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(simFaceX+simFaceR*.28,simFaceY-simFaceR*.1,simFaceR*.09,0,Math.PI*2);ctx.fill();
+    // Corner guides
+    const corners=[[ovalCx-ovalRx,ovalCy-ovalRy],[ovalCx+ovalRx,ovalCy-ovalRy],[ovalCx-ovalRx,ovalCy+ovalRy],[ovalCx+ovalRx,ovalCy+ovalRy]];
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;
+    corners.forEach(([cx,cy])=>{
+      const dx=cx<W/2?12:-12,dy=cy<H/2?12:-12;
+      ctx.beginPath();ctx.moveTo(cx,cy+dy);ctx.lineTo(cx,cy);ctx.lineTo(cx+dx,cy);ctx.stroke();
+    });
+    // Status label
+    if(inOval){
+      goodFrames++;
+      if(goodFrames>20&&!alignOk){
+        alignOk=true;
+        document.getElementById('alignStatus').textContent='Face aligned! Hold still — assessment starting in 3s...';
+        document.getElementById('alignStatus').className='align-status ok';
+        document.getElementById('alignLabel').textContent='Hold still';
+        startAlignCountdown();
+      }
+    } else {
+      goodFrames=Math.max(0,goodFrames-2);
+      if(!alignOk){
+        const dx=ovalCx-simFaceX,dy=ovalCy-simFaceY;
+        let msg='Move ';
+        if(Math.abs(dx)>Math.abs(dy))msg+=dx>0?'right':'left';
+        else msg+=dy>0?'down':'up';
+        document.getElementById('alignStatus').textContent=msg+' to centre face in oval';
+        document.getElementById('alignStatus').className='align-status bad';
+      }
+    }
+    // Simulate face drifting into position
+    simFaceX+=(ovalCx-simFaceX)*.04+(Math.random()-.5)*3;
+    simFaceY+=(ovalCy-simFaceY)*.04+(Math.random()-.5)*3;
+    faceAf=requestAnimationFrame(draw);
+  }
+  faceAf=requestAnimationFrame(draw);
+}
+
+function startAlignCountdown(){
+  let c=3;
+  const iv=setInterval(()=>{
+    c--;
+    if(c>0){document.getElementById('alignStatus').textContent='Face aligned! Starting in '+c+'...';}
+    else{clearInterval(iv);proceedToTasks();}
+  },1000);
+}
+
+function skipAlign(){
+  alignOk=true;
+  cancelAnimationFrame(faceAf);
+  proceedToTasks();
+}
+
+function proceedToTasks(){
+  cancelAnimationFrame(faceAf);
+  gs(2);
+  startTaskCamera();
+}
+
+// ─── S2: Eye Tracking ─────────────────────────────
+async function startTaskCamera(){
+  try{
+    stream2=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+    document.getElementById('videoEl2').srcObject=stream2;
+    const a=document.getElementById('arena'),c=document.getElementById('taskCanvas');
+    c.width=a.offsetWidth;c.height=a.offsetHeight;
+  }catch(e){}
+}
+
+function runNext(){
+  if(tIdx>=tasks.length){finishT();return;}
+  const t=tasks[tIdx];
+  document.getElementById('startBtn').style.display='none';
+  document.getElementById('tstat').textContent='Running: '+t.name;
+  document.getElementById('tstat').className='pill run';
+  document.getElementById('tDesc').textContent=t.desc;
+  startRTMetrics(tIdx);
+  let el=0;
+  const iv=setInterval(()=>{
+    el++;
+    document.getElementById('tTimer').textContent=(t.dur-el)+'s';
+    updateCompliance(el,t.dur);
+    if(el>=t.dur){
+      clearInterval(iv);
+      stopRTMetrics();
+      procT(tIdx);tIdx++;
+      document.getElementById('tTimer').textContent='';
+      if(tIdx<tasks.length){
+        document.getElementById('tstat').textContent='Ready for next task';
+        document.getElementById('tstat').className='pill wait';
+        document.getElementById('startBtn').style.display='block';
+        document.getElementById('startBtn').textContent='Start: '+tasks[tIdx].name+' →';
+        document.getElementById('tLabel').textContent=tasks[tIdx].name;
+        document.getElementById('tDesc').textContent='Press Start when ready.';
+      }else{finishT();}
+    }
+  },1000);
+  animT(tIdx,t.dur);
+}
+
+function startRTMetrics(idx){
+  let tick=0;
+  rtInterval=setInterval(()=>{
+    tick++;
+    // Simulate real-time values updating during task
+    if(idx===0){
+      const fi=(1.0+Math.random()*1.5).toFixed(1);
+      setMetric('sl','--','','mc-sl',false);
+      setMetric('fi',fi,'°','mc-fi',parseFloat(fi)>1.5);
+      setMetric('as','--','','mc-as',false);
+      setMetric('sp','--','','mc-sp',false);
+    } else if(idx===1){
+      const sl=Math.round(180+Math.random()*100);
+      setMetric('sl',sl,'ms','mc-sl',sl>250);
+      setMetric('fi',(1.2+Math.random()*.8).toFixed(1),'°','mc-fi',false);
+    } else if(idx===2){
+      const as=Math.round(8+Math.random()*30);
+      setMetric('as',as,'%','mc-as',as>20);
+    } else if(idx===3){
+      const sp=(0.70+Math.random()*.22).toFixed(2);
+      setMetric('sp',sp,'','mc-sp',parseFloat(sp)<0.75);
+    }
+  },600);
+}
+
+function setMetric(id,val,unit,cellId,isAlert){
+  document.getElementById('mv-'+id).textContent=val;
+  const cell=document.getElementById(cellId);
+  cell.className='metric-cell'+(isAlert?' alert':val!='--'?' good':'');
+}
+
+function stopRTMetrics(){clearInterval(rtInterval);}
+
+function updateCompliance(el,dur){
+  const pct=Math.round(70+Math.random()*25);
+  complianceScore=pct;
+  document.getElementById('comp-fill').style.width=pct+'%';
+  document.getElementById('comp-pct').textContent=pct+'%';
+  document.getElementById('comp-fill').style.background=pct>=80?'#22c55e':pct>=60?'#f59e0b':'#ef4444';
+}
+
+function animT(idx,dur){
+  const c=document.getElementById('taskCanvas'),ctx=c.getContext('2d');
+  const W=c.width,H=c.height,cx=W/2,cy=H/2;
+  let st=null;cancelAnimationFrame(af);
+  function draw(ts){
+    if(!st)st=ts;const el=(ts-st)/1000;
+    if(el>dur){ctx.clearRect(0,0,W,H);return;}
+    ctx.clearRect(0,0,W,H);
+    let dx=cx,dy=cy;
+    if(idx===1)dx=(Math.floor(el*1.2)%2===0)?cx-W*.32:cx+W*.32;
+    else if(idx===2)dx=(Math.floor(el)%2===0)?cx-W*.32:cx+W*.32;
+    else if(idx===3)dx=cx+Math.sin(el*1.1)*W*.38;
+    // Target dot
+    ctx.beginPath();ctx.arc(dx,dy,15,0,Math.PI*2);ctx.fillStyle='rgba(74,159,212,.25)';ctx.fill();
+    ctx.beginPath();ctx.arc(dx,dy,10,0,Math.PI*2);ctx.fillStyle='#4a9fd4';ctx.fill();
+    ctx.beginPath();ctx.arc(dx,dy,4,0,Math.PI*2);ctx.fillStyle='white';ctx.fill();
+    // Gaze dot
+    const d=document.getElementById('gazeDot');d.style.display='block';
+    if(idx===0){d.style.left=(cx+(Math.random()-.5)*14)+'px';d.style.top=(cy+(Math.random()-.5)*14)+'px';}
+    else if(idx===1){d.style.left=(dx+(Math.random()-.5)*30)+'px';d.style.top=(cy+(Math.random()-.5)*16)+'px';}
+    else if(idx===2){const anti=2*cx-dx;d.style.left=((Math.random()<.2?dx:anti)+(Math.random()-.5)*22)+'px';d.style.top=(cy+(Math.random()-.5)*16)+'px';}
+    else{d.style.left=(cx+(dx-cx)*.80+(Math.random()-.5)*18)+'px';d.style.top=(cy+(Math.random()-.5)*16)+'px';}
+    af=requestAnimationFrame(draw);
+  }
+  af=requestAnimationFrame(draw);
+}
+
+function procT(idx){
+  if(idx===0)R.fi=Math.round((1.1+Math.random()*2.6)*10)/10;
+  else if(idx===1)R.sl=Math.round(175+Math.random()*145);
+  else if(idx===2)R.as=Math.round(9+Math.random()*40);
+  else if(idx===3)R.sp=Math.round((.64+Math.random()*.32)*100)/100;
+}
+
+function finishT(){
+  cancelAnimationFrame(af);stopRTMetrics();
+  document.getElementById('gazeDot').style.display='none';
+  const c=document.getElementById('taskCanvas');c.getContext('2d').clearRect(0,0,c.width,c.height);
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  if(stream2)stream2.getTracks().forEach(t=>t.stop());
+  gs(3);
+}
+
+function skipToRet(){
+  R.sl=Math.round(195+Math.random()*120);R.as=Math.round(12+Math.random()*36);
+  R.fi=Math.round((1.2+Math.random()*2.5)*10)/10;R.sp=Math.round((.66+Math.random()*.30)*100)/100;
+  complianceScore=Math.round(72+Math.random()*22);
+  cancelAnimationFrame(af);stopRTMetrics();
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  if(stream2)stream2.getTracks().forEach(t=>t.stop());
+  gs(3);
+}
+
+// ─── S3: Retinal ─────────────────────────────────
+function handleUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    document.getElementById('uzone').style.display='none';
+    document.getElementById('ret-analyzing').style.display='block';
+    const steps=['Extracting vascular features...','Measuring vessel caliber ratio...','Computing fractal dimension...','Analysing texture patterns...','Calculating anomaly indices...','Finalising biomarker scores...'];
+    let i=0;const si=setInterval(()=>{
+      document.getElementById('astep').textContent=steps[i%steps.length];i++;
+      if(i>=steps.length){clearInterval(si);setTimeout(()=>showRetResult(ev.target.result),400);}
+    },500);
+  };reader.readAsDataURL(file);
+}
+
+function showRetResult(src){
+  document.getElementById('ret-analyzing').style.display='none';
+  document.getElementById('ret-result').style.display='block';
+  document.getElementById('ret-img').src=src;hasRet=true;
+  RR.avr=Math.round(30+Math.random()*50);RR.fd=Math.round(28+Math.random()*52);
+  RR.tai=Math.round(18+Math.random()*58);RR.odp=Math.round(14+Math.random()*52);
+  RR.vs=Math.round(RR.avr*.6+RR.fd*.4);RR.ts=Math.round(RR.tai*.65+RR.odp*.35);
+  const img=document.getElementById('ret-img');
+  img.onload=function(){
+    const cv=document.getElementById('ret-canvas');cv.width=img.offsetWidth;cv.height=img.offsetHeight;
+    const ctx=cv.getContext('2d');
+    ctx.strokeStyle='rgba(74,159,212,.7)';ctx.lineWidth=1.5;
+    for(let i=0;i<7;i++){ctx.beginPath();ctx.arc(Math.random()*cv.width*.7+cv.width*.15,Math.random()*cv.height*.7+cv.height*.15,12+Math.random()*22,0,Math.PI*2);ctx.stroke();}
+    ctx.strokeStyle='rgba(224,92,92,.6)';
+    for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(Math.random()*cv.width*.6+cv.width*.2,Math.random()*cv.height*.6+cv.height*.2,7+Math.random()*13,0,Math.PI*2);ctx.stroke();}
+  };
+  setTimeout(()=>{
+    sb('avr-b',RR.avr,'avr-v',RR.avr+'%');sb('fd-b',RR.fd,'fd-v',RR.fd+'%');
+    sb('tai-b',RR.tai,'tai-v',RR.tai+'%');sb('odp-b',RR.odp,'odp-v',RR.odp+'%');
+    document.getElementById('vscore').textContent=RR.vs;document.getElementById('tscore').textContent=RR.ts;
+  },120);
+}
+function sb(bid,pct,vid,vt){document.getElementById(bid).style.width=pct+'%';document.getElementById(vid).textContent=vt;}
+function skipRet(){hasRet=false;showParams();}
+
+// ─── S4: Parameters ───────────────────────────────
+function showParams(){
+  gs(4);
+  document.getElementById('r-sl').textContent=R.sl;
+  document.getElementById('r-as').textContent=R.as;
+  document.getElementById('r-fi').textContent=R.fi.toFixed(1);
+  document.getElementById('r-sp').textContent=R.sp.toFixed(2);
+  if(hasRet){
+    document.getElementById('ret-params').style.display='block';
+    document.getElementById('p-avr').textContent=RR.avr;document.getElementById('p-fd').textContent=RR.fd;
+    document.getElementById('p-tai').textContent=RR.tai;document.getElementById('p-odp').textContent=RR.odp;
+  }
+  const wd=document.getElementById('wdisplay');
+  wd.innerHTML=hasRet
+    ?wrow('Oculomotor composite','70%','#4a9fd4',70)+wrow('Retinal composite','30%','#2d9e5c',30)
+    :wrow('Oculomotor composite','100%','#4a9fd4',100)+'<p style="font-size:10px;color:#9ca3af;margin-top:5px">Retinal module not used — upload fundus image to activate</p>';
+  const cp=complianceScore||Math.round(72+Math.random()*22);
+  complianceScore=cp;
+  document.getElementById('comp-final').textContent=cp+'%';
+  document.getElementById('comp-note').textContent=cp>=80?'Good compliance — results reliable':cp>=60?'Moderate compliance — interpret with care':'Low compliance — consider re-screening';
+}
+function wrow(l,p,c,w){return'<div class="wr"><span class="wl">'+l+'</span><div class="wwrap"><div class="wfill" style="width:'+w+'%;background:'+c+'"></div></div><span class="wp">'+p+'</span></div>';}
+
+// ─── S5: Results ─────────────────────────────────
+function showResults(){
+  gs(5);
+  const agF=pAge>70?1.15:pAge>60?1.07:1.0;
+  const slS=Math.min(100,Math.max(0,((R.sl-150)/250)*100));
+  const asS=Math.min(100,(R.as/60)*100);
+  const fiS=Math.min(100,Math.max(0,((R.fi-.5)/4.5)*100));
+  const spS=Math.min(100,Math.max(0,((1.0-R.sp)/.6)*100));
+  const ocS=(slS*.35)+(asS*.30)+(fiS*.20)+(spS*.15);
+  if(hasRet){const retS=RR.vs*.6+RR.ts*.4;finalScore=Math.min(100,Math.round((ocS*.70+retS*.30)*agF+ePenalty+fhxPenalty));}
+  else finalScore=Math.min(100,Math.round(ocS*agF+ePenalty+fhxPenalty));
+
+  const cat=finalScore<34?'low':finalScore<67?'mid':'high';
+  const lbl=finalScore<34?'Low risk':finalScore<67?'Intermediate risk':'High risk';
+  const col=finalScore<34?'#16a34a':finalScore<67?'#d97706':'#dc2626';
+
+  document.getElementById('fscore').textContent=finalScore;
+  document.getElementById('sbar').style.width=finalScore+'%';
+  document.getElementById('sbar').style.background=col;
+  const b=document.getElementById('rbadge');b.textContent=lbl;b.className='rbadge '+cat;
+
+  // Outcome pathway
+  if(finalScore>=67||cat==='high'){
+    document.getElementById('outcome-referral').style.display='block';
+    document.getElementById('outcome-followup').style.display='none';
+    document.getElementById('cogn').style.display='block';
+    const ab=document.getElementById('action-btn');
+    ab.textContent='Send referral report to neurologist →';
+    ab.className='btn btn-p';ab.style.background='#991b1b';
+    ab.onclick=()=>alert('Referral report sent!\n\nIn the full NeuroSight system, this would:\n• Email the report to the linked neurologist\n• Add patient to the referral queue\n• SMS the patient with appointment guidance');
+  } else if(finalScore>=34){
+    document.getElementById('outcome-referral').style.display='none';
+    document.getElementById('outcome-followup').style.display='block';
+    document.getElementById('followup-interval').textContent='Repeat screening recommended in 6 months';
+    document.getElementById('cogn').style.display='none';
+    const ab=document.getElementById('action-btn');
+    ab.textContent='Schedule 6-month follow-up →';
+    ab.className='btn btn-amber';
+    ab.onclick=()=>alert('Follow-up scheduled!\n\nIn the full NeuroSight system, this would:\n• Add patient to 6-month recall list\n• Send SMS reminder to patient\n• Flag for community eye-care camp');
+  } else {
+    document.getElementById('outcome-referral').style.display='none';
+    document.getElementById('outcome-followup').style.display='block';
+    document.getElementById('followup-interval').textContent='Routine repeat screening recommended in 12 months';
+    document.getElementById('cogn').style.display='none';
+    const ab=document.getElementById('action-btn');
+    ab.textContent='Schedule 12-month follow-up →';
+    ab.className='btn btn-green';
+    ab.onclick=()=>alert('Follow-up scheduled!\n\nIn the full NeuroSight system, this would:\n• Add patient to 12-month recall list\n• Send reassurance SMS to patient');
+  }
+
+  // Fill report
+  document.getElementById('rp-name').textContent=patient.name||'--';
+  document.getElementById('rp-id').textContent=patient.pid||'--';
+  document.getElementById('rp-age').textContent=(patient.age||'--')+' years / '+(patient.gender||'--');
+  document.getElementById('rp-phone').textContent=patient.phone||'--';
+  document.getElementById('rp-stype').textContent=patient.stype==='followup'?'Follow-up screening':'Initial screening';
+  document.getElementById('rp-date').textContent=patient.date||new Date().toLocaleDateString();
+  document.getElementById('rp-comp').textContent=complianceScore+'%';
+  document.getElementById('rr-sl').textContent=R.sl+' ms';
+  document.getElementById('rr-as').textContent=R.as+'%';
+  document.getElementById('rr-fi').textContent=R.fi.toFixed(1)+'°';
+  document.getElementById('rr-sp').textContent=R.sp.toFixed(2);
+  document.getElementById('rr-score').textContent=finalScore+'/100';
+  document.getElementById('rr-cat').textContent=lbl;
+  document.getElementById('rr-rec').textContent=finalScore>=67?'Neurological referral within 4 weeks':finalScore>=34?'Follow-up in 6 months':'Routine follow-up in 12 months';
+  document.getElementById('rr-next').textContent=finalScore>=67?'Urgent':'Scheduled';
+  if(hasRet){
+    document.getElementById('rr-ret-section').style.display='block';
+    document.getElementById('rr-vs').textContent=RR.vs+'/100';
+    document.getElementById('rr-ts').textContent=RR.ts+'/100';
+  }
+}
+
+function selC(el,qi,score){
+  el.parentElement.querySelectorAll('.copt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');
+  cScores[qi]=score;const tot=cScores.reduce((a,b)=>a+b,0);
+  const r=document.getElementById('cres');r.style.display='block';
+  if(tot>=4){r.style.background='#fee2e2';r.style.color='#991b1b';r.textContent='Cognitive score: '+tot+'/6 — strongly supports urgent neurological referral';}
+  else if(tot>=2){r.style.background='#fef9c3';r.style.color='#854d0e';r.textContent='Cognitive score: '+tot+'/6 — supports referral for full evaluation';}
+  else{r.style.background='#dcfce7';r.style.color='#166534';r.textContent='Cognitive score: '+tot+'/6 — mild, monitor closely';}
+}
+
+function restart(){
+  tIdx=0;hasRet=false;cScores=[0,0,0];complianceScore=0;alignOk=false;
+  R={sl:0,as:0,fi:0,sp:0};RR={avr:0,fd:0,tai:0,odp:0,vs:0,ts:0};
+  patient={};pAge=65;ePenalty=0;fhxPenalty=0;finalScore=0;
+  cancelAnimationFrame(af);cancelAnimationFrame(faceAf);stopRTMetrics();
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  if(stream2)stream2.getTracks().forEach(t=>t.stop());
+  ['uzone','ret-analyzing','ret-result','ret-params','rr-ret-section','outcome-referral','outcome-followup','cogn'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.style.display=id==='uzone'?'block':'none';
+  });
+  document.getElementById('cres').style.display='none';
+  document.getElementById('hdr-patient').innerHTML='';
+  document.getElementById('f-fname').value='';document.getElementById('f-lname').value='';
+  document.getElementById('f-age').value='';document.getElementById('f-phone').value='';
+  document.getElementById('f-pid').value=genPID();
+  document.getElementById('startBtn').style.display='block';
+  document.getElementById('startBtn').textContent='Start eye-tracking tasks →';
+  gs(0);
+}
+</script>
+</body>
+</html>
